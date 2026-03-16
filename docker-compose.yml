@@ -1,0 +1,115 @@
+version: "3.9"
+
+services:
+
+  # ── Ollama — local LLM server ────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: gitagide-ollama
+    volumes:
+      - ollama_models:/root/.ollama       # persists downloaded models
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Setup — runs once to pull model, build persona, ingest ───
+  # Exits after completion — does not stay running
+  setup:
+    image: ollama/ollama:latest
+    container_name: gitagide-setup
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_models:/root/.ollama
+      - ./Modelfile:/Modelfile
+      - ./gita_db:/app/gita_db
+      - ./verses.json:/app/verses.json
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: >
+      /bin/sh -c "
+        echo '→ Pulling llama3.2...' &&
+        ollama pull llama3.2 &&
+        echo '→ Building gita-guide persona...' &&
+        ollama create gita-guide -f /Modelfile &&
+        echo '✓ Ollama setup complete'
+      "
+    restart: "no"
+
+  # ── Ingest — runs once to ingest texts into ChromaDB ─────────
+  ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: gitagide-ingest
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+    volumes:
+      - ./gita_db:/app/gita_db            # persists ChromaDB across restarts
+      - ./verses.json:/app/verses.json
+      - ./static:/app/static
+      - source_texts:/app/source_texts    # downloaded PDFs/txts
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=gita-guide
+      - CHROMA_DB_PATH=/app/gita_db
+    entrypoint: >
+      /bin/sh -c "
+        echo '→ Running ingestion...' &&
+        python ingest.py &&
+        echo '→ Building verse database...' &&
+        python build_verses.py &&
+        echo '→ Downloading hero image...' &&
+        python download_image.py || true &&
+        echo '✓ Ingest complete'
+      "
+    restart: "no"
+
+  # ── App — the Streamlit web application ──────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: gitagide-app
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+      ollama:
+        condition: service_healthy
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./gita_db:/app/gita_db            # shared with ingest container
+      - ./verses.json:/app/verses.json
+      - ./static:/app/static
+      - ./logs:/app/logs
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=gita-guide
+      - CHROMA_DB_PATH=/app/gita_db
+      - VERSES_FILE=/app/verses.json
+      - LLM_TEMPERATURE=0.3
+      - LLM_MAX_TOKENS=1024
+      - RAG_K=4
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  ollama_models:      # Llama model weights — persisted across rebuilds
+  source_texts:       # Downloaded PDFs/TXTs — avoids re-downloading

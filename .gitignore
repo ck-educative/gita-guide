@@ -1,0 +1,30 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Generated data — large files, don't commit
+gita_db/
+*.pdf
+*.txt
+gita_arnold.txt
+gita_archive.txt
+
+# Logs
+logs/
+
+# Environment
+.env
+
+# macOS
+.DS_Store
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+# Keep these — commit them
+# verses.json       ← commit this (700 verses, ~500KB)
+# static/           ← commit hero image
+# Modelfile         ← commit this
