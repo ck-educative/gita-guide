@@ -65,9 +65,9 @@ services:
     entrypoint: >
       /bin/sh -c "
         echo '→ Running ingestion...' &&
-        python ingest.py &&
+        python scripts/ingest.py &&
         echo '→ Building verse database...' &&
-        python build_verses.py &&
+        python scripts/build_verses.py &&
         echo '→ Downloading hero image...' &&
         python download_image.py || true &&
         echo '✓ Ingest complete'

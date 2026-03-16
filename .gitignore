@@ -3,28 +3,53 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .Python
 
-# Generated data — large files, don't commit
+# Vector DB — rebuild with: python scripts/ingest.py
 gita_db/
+
+# Downloaded source files — rebuild with: python scripts/ingest.py
+sources/
+
+# PDFs anywhere in the project
 *.pdf
-*.txt
-gita_arnold.txt
-gita_archive.txt
+*.PDF
+
+# Downloaded Gita text files (large, in sources/)
+gita*.txt
 
 # Logs
 logs/
+*.log
 
 # Environment
 .env
+.env.*
+!env.example
 
 # macOS
 .DS_Store
+.AppleDouble
 
-# Streamlit cache
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Streamlit
 .streamlit/secrets.toml
 
-# Keep these — commit them
-# verses.json       ← commit this (700 verses, ~500KB)
-# static/           ← commit hero image
-# Modelfile         ← commit this
+# pytest cache
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Commit these:
+# requirements.txt  ← always commit
+# verses.json       ← pre-built 701-verse database
+# static/           ← hero image
+# Modelfile         ← Ollama persona
+# scripts/          ← all utility scripts
+# tests/            ← full test suite

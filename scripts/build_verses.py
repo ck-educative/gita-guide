@@ -229,7 +229,26 @@ def print_stats(verses: dict):
 
 # ── Main ──────────────────────────────────────────────────────
 
-def build(reset: bool = False, only_chapter: int = None):
+def fetch_one(args_tuple):
+    """Worker function for parallel fetching. Returns (key, verse_dict | None)."""
+    chapter, verse = args_tuple
+    data = fetch_verse_api(chapter, verse)
+    key = f"{chapter}.{verse}"
+    if data:
+        return key, {
+            "chapter": chapter,
+            "verse": verse,
+            "sanskrit": data.get("sanskrit", "") or data.get("sanskrit_api", ""),
+            "transliteration": data.get("transliteration", ""),
+            "translation": data.get("translation", ""),
+            "word_meaning": "",
+        }
+    return key, None
+
+
+def build(reset: bool = False, only_chapter: int = None, workers: int = 10):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     logger.info("=== Gita Guide — Building Verse Database ===")
     output_file = app_config.verses_file
 
@@ -244,101 +263,62 @@ def build(reset: bool = False, only_chapter: int = None):
             except json.JSONDecodeError:
                 verses = {}
 
-    # Skip PDF extraction — the sanskritweb PDF uses a custom glyph font
-    # mapped to Private Use Area codepoints, not real Unicode Devanagari.
-    # The API (vedicscriptures.github.io) provides clean Unicode Sanskrit.
-    pdf_sanskrit = {}
-    logger.info("\nFetching Sanskrit + transliteration + translation from API...")
-    total_expected = sum(ingest_config.chapter_verse_counts.values())
-    processed = 0
-    failed = []
-
+    # Build list of (chapter, verse) tuples to fetch
     chapters = ingest_config.chapter_verse_counts
     if only_chapter:
         if only_chapter not in chapters:
             logger.error("Invalid chapter %d — must be 1–18", only_chapter)
             sys.exit(1)
         chapters = {only_chapter: chapters[only_chapter]}
-        logger.info("Single chapter mode: Chapter %d (%d verses)", only_chapter, chapters[only_chapter])
+        logger.info("Chapter %d only (%d verses)", only_chapter, chapters[only_chapter])
 
+    todo = []
     for chapter, verse_count in chapters.items():
-        # Skip complete chapters
-        chapter_keys = [f"{chapter}.{v}" for v in range(1, verse_count + 1)]
-        already_done = all(
-            verses.get(k, {}).get("sanskrit") and
-            verses.get(k, {}).get("transliteration")
-            for k in chapter_keys
-        )
-        if already_done:
-            logger.info("Chapter %2d — already complete, skipping", chapter)
-            processed += verse_count
-            continue
-
-        logger.info("Chapter %2d (%d verses)...", chapter, verse_count)
-        chapter_ok = 0
-
         for verse in range(1, verse_count + 1):
             key = f"{chapter}.{verse}"
+            already = verses.get(key, {})
+            if already.get("sanskrit") and already.get("transliteration"):
+                continue  # skip already-complete verses
+            todo.append((chapter, verse))
 
-            # Skip if already fully populated
-            if (verses.get(key, {}).get("sanskrit") and
-                    verses.get(key, {}).get("transliteration")):
-                processed += 1
-                chapter_ok += 1
-                continue
+    if not todo:
+        logger.info("All verses already complete.")
+        print_stats(verses)
+        return
 
-            # Get Sanskrit — prefer PDF extraction, fall back to API
-            sanskrit = pdf_sanskrit.get(key, "")
+    total = len(todo)
+    logger.info("Fetching %d verses with %d parallel workers...", total, workers)
 
-            # Fetch transliteration + translation from API
-            api_data = fetch_verse_api(chapter, verse)
+    failed = []
+    done = 0
 
-            if api_data:
-                verses[key] = {
-                    "chapter": chapter,
-                    "verse": verse,
-                    "sanskrit": api_data.get("sanskrit", "") or api_data.get("sanskrit_api", ""),
-                    "transliteration": api_data.get("transliteration", ""),
-                    "translation": api_data.get("translation", ""),
-                    "word_meaning": "",
-                }
-                chapter_ok += 1
-            elif sanskrit:
-                # Have Sanskrit from PDF but API failed
-                verses[key] = {
-                    "chapter": chapter,
-                    "verse": verse,
-                    "sanskrit": sanskrit,
-                    "transliteration": "",
-                    "translation": f"Bhagavad Gita {chapter}.{verse}",
-                    "word_meaning": "",
-                }
-                chapter_ok += 1
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        futures = {executor.submit(fetch_one, t): t for t in todo}
+        for future in as_completed(futures):
+            key, verse_dict = future.result()
+            if verse_dict:
+                verses[key] = verse_dict
             else:
+                ch, vs = futures[future]
                 failed.append(key)
                 verses[key] = {
-                    "chapter": chapter,
-                    "verse": verse,
-                    "sanskrit": "",
-                    "transliteration": "",
-                    "translation": f"Bhagavad Gita {chapter}.{verse}",
+                    "chapter": ch, "verse": vs,
+                    "sanskrit": "", "transliteration": "",
+                    "translation": f"Bhagavad Gita {key}",
                     "word_meaning": "",
                 }
-                logger.warning("  ✗ %s — no data from any source", key)
+                logger.warning("✗ %s — no data", key)
 
-            processed += 1
-            if processed % ingest_config.save_every == 0:
+            done += 1
+            if done % 50 == 0 or done == total:
+                logger.info("  %d / %d fetched...", done, total)
                 save(verses, output_file)
-            time.sleep(ingest_config.request_delay)
-
-        logger.info("  Chapter %d: %d / %d verses", chapter, chapter_ok, verse_count)
 
     save(verses, output_file)
-
     logger.info("\n=== Complete ===")
     print_stats(verses)
     if failed:
-        logger.warning("Missing (%d): %s", len(failed), ", ".join(failed[:10]))
+        logger.warning("Failed (%d): %s", len(failed), ", ".join(failed[:10]))
     logger.info("Saved to: %s", output_file)
 
 
@@ -350,6 +330,8 @@ if __name__ == "__main__":
                         help="Show current stats and exit")
     parser.add_argument("--chapter", type=int, default=None,
                         help="Only fetch a single chapter (1–18)")
+    parser.add_argument("--workers", type=int, default=10,
+                        help="Parallel workers (default: 10)")
     args = parser.parse_args()
 
     if args.stats:
@@ -359,4 +341,4 @@ if __name__ == "__main__":
         else:
             print("No verses.json found. Run: python build_verses.py")
     else:
-        build(reset=args.reset, only_chapter=args.chapter)
+        build(reset=args.reset, only_chapter=args.chapter, workers=args.workers)
