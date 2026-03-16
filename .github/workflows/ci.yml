@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install ruff pytest
+
+      - name: Lint with ruff
+        run: ruff check . --exclude venv/
+
+      - name: Validate config loads
+        run: python -c "from config import model_config, rag_config, app_config, ingest_config; print('Config OK')"
+
+      - name: Validate all imports resolve
+        run: |
+          python -c "import config; print('config OK')"
+          python -c "import rag; print('rag OK')"
+          python -c "import sys; sys.path.insert(0, 'scripts'); import ingest; print('ingest OK')"
+          python -c "import sys; sys.path.insert(0, 'scripts'); import build_verses; print('build_verses OK')"
+
+      - name: Validate verses.json
+        run: |
+          python - << 'PYEOF'
+          import json, sys, os
+          if not os.path.exists("verses.json"):
+              print("SKIP: verses.json not found")
+              sys.exit(0)
+          with open("verses.json") as f:
+              verses = json.load(f)
+          required = {"chapter", "verse", "sanskrit", "transliteration", "translation"}
+          errors = []
+          for key, v in verses.items():
+              missing = required - set(v.keys())
+              if missing:
+                  errors.append(f"{key} missing: {missing}")
+          if errors:
+              print("\n".join(errors[:5]))
+              sys.exit(1)
+          print(f"OK: {len(verses)} verses validated")
+          PYEOF
+
+      - name: Run fast unit tests
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: pytest tests/test_config.py tests/test_rag.py tests/test_build_verses.py -v --tb=short
+
+      - name: Run full test suite
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: pytest -v --tb=short

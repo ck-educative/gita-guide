@@ -1,0 +1,41 @@
+name: CD — Deploy to Streamlit Cloud
+
+on:
+  push:
+    branches: [main]
+
+# Streamlit Cloud watches the GitHub repo directly and auto-deploys on push.
+# This workflow validates the build is healthy before Streamlit picks it up.
+
+jobs:
+  validate-before-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate config and imports
+        run: |
+          python -c "from config import model_config, rag_config, app_config, ingest_config; print('Config OK')"
+          python -c "import rag; print('RAG OK')"
+
+      - name: Run fast tests
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: pytest tests/test_config.py tests/test_rag.py tests/test_build_verses.py -v --tb=short
+
+      - name: Confirm deploy
+        run: |
+          echo "✓ All checks passed"
+          echo "✓ Streamlit Cloud will auto-deploy from main branch"
+          echo "✓ App URL: https://ck-educative-gita-guide.streamlit.app"
