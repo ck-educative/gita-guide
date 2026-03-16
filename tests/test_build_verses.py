@@ -6,7 +6,6 @@ Run:
     pytest tests/test_build_verses.py -v       # verbose output
 """
 
-import pytest
 from unittest.mock import patch
 
 

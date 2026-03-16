@@ -4,7 +4,6 @@ tests/test_ingest.py — Tests for ingest.py source loading and chunking.
 
 import os
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 # ── Source list ───────────────────────────────────────────────

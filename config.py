@@ -5,7 +5,6 @@ All tuneable settings live here. Never hardcode values in app.py or rag.py.
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass

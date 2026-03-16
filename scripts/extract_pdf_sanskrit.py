@@ -43,13 +43,10 @@ def extract_cmap_from_pdf(pdf_path: str) -> dict:
       { pua_char: devanagari_unicode_char, ... }
     """
     try:
-        from pdfminer.high_level import extract_pages
-        from pdfminer.layout import LTPage
         from pdfminer.pdfdocument import PDFDocument
         from pdfminer.pdfpage import PDFPage
         from pdfminer.pdfparser import PDFParser
         from pdfminer.pdftypes import resolve1
-        from pdfminer.pdfinterp import PDFResourceManager
     except ImportError:
         print("ERROR: pdfminer.six not installed. Run: pip install pdfminer.six")
         sys.exit(1)
@@ -139,9 +136,8 @@ def decode_with_cmap(text: str, cmap: dict) -> str:
 def extract_text_pages(pdf_path: str, cmap: dict) -> list[str]:
     """Extract text from all pages, decoding with cmap."""
     try:
-        from pdfminer.high_level import extract_text_to_fp
         from pdfminer.high_level import extract_pages
-        from pdfminer.layout import LTTextContainer, LTChar
+        from pdfminer.layout import LTTextContainer
     except ImportError:
         print("ERROR: pdfminer.six not installed.")
         sys.exit(1)
