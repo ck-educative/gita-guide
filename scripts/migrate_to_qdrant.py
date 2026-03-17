@@ -51,7 +51,6 @@ def main():
 
     # ── Delete existing Qdrant collection ─────────────────────
     from qdrant_client import QdrantClient
-    from qdrant_client.models import Distance, VectorParams
 
     print(f"\nConnecting to Qdrant: {QDRANT_URL}")
     client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)

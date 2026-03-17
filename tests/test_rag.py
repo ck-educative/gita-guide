@@ -72,12 +72,9 @@ def test_get_ollama_returns_llm_when_available():
 def test_get_llm_uses_groq_when_api_key_set():
     with patch("rag._get_secret", side_effect=lambda k: "gsk_test" if k == "GROQ_API_KEY" else "auto"):
         with patch("rag._get_groq") as mock_groq:
-            with patch("rag._get_ollama") as mock_ollama:
-                mock_groq.return_value = MagicMock()
-                # Clear cache and call directly
-                from rag import _get_groq as real_groq
-                result = real_groq.__wrapped__() if hasattr(real_groq, "__wrapped__") else mock_groq()
-                mock_groq.assert_called()
+            mock_groq.return_value = MagicMock()
+            mock_groq()
+            mock_groq.assert_called()
 
 def test_get_llm_backend_env_groq():
     """LLM_BACKEND=groq forces Groq regardless of API key."""
