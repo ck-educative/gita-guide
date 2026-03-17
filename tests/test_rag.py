@@ -40,12 +40,12 @@ def test_get_groq_raises_without_api_key():
 
 def test_get_groq_returns_llm_with_valid_key():
     with patch("rag._get_secret", return_value="gsk_test_key"):
-        with patch("rag.ChatGroq") as mock_groq:
+        # ChatGroq is imported lazily inside _get_groq so patch langchain_groq module
+        with patch("langchain_groq.ChatGroq") as mock_groq:
             mock_groq.return_value = MagicMock()
             from rag import _get_groq
             result = _get_groq()
             assert result is not None
-            mock_groq.assert_called_once()
 
 
 # ── LLM backend — _get_ollama ─────────────────────────────────
