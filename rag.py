@@ -9,8 +9,6 @@ import os
 from typing import Optional
 
 import streamlit as st
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_groq import ChatGroq
 
 from config import model_config, rag_config
 
@@ -105,8 +103,9 @@ def check_guardrails(query: str) -> str | None:
 # ── Cached resource loaders ───────────────────────────────────
 
 @st.cache_resource(show_spinner=False)
-def get_embeddings() -> HuggingFaceEmbeddings:
+def get_embeddings():
     """Load embedding model once and cache it."""
+    from langchain_huggingface import HuggingFaceEmbeddings
     logger.info("Loading embedding model: %s", model_config.embedding_model)
     return HuggingFaceEmbeddings(
         model_name=model_config.embedding_model,
@@ -115,14 +114,18 @@ def get_embeddings() -> HuggingFaceEmbeddings:
 
 
 def _get_secret(key: str, default: str = "") -> str:
-    """Read from env first, then Streamlit secrets."""
+    """Read from env vars first, then Streamlit secrets."""
+    # 1. Environment variable (local .env or CI)
     val = os.getenv(key, "")
-    if not val:
-        try:
-            val = st.secrets.get(key, default)
-        except Exception:
-            val = default
-    return val
+    if val:
+        return val
+    # 2. Streamlit secrets (Streamlit Cloud dashboard)
+    try:
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
+        pass
+    return default
 
 
 def _load_chroma():
@@ -191,6 +194,7 @@ def get_vectorstore():
 
 def _get_groq():
     """Load Groq LLM."""
+    from langchain_groq import ChatGroq
     api_key = _get_secret("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY not set. Add it to .env or Streamlit secrets.")
