@@ -10,14 +10,22 @@ import os
 
 import streamlit as st
 
+# ── Page config — MUST be first Streamlit call ────────────────
+st.set_page_config(
+    page_title="Gita Guide 🕉",
+    page_icon="🕉",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ── Imports — show error in UI if anything fails ──────────────
 try:
     from config import app_config, rag_config
     from rag import SYSTEM_PROMPTS, ask, check_guardrails, get_vectorstore, retrieve_passages
 except Exception as _import_err:
-    import streamlit as _st
-    _st.error(f"Startup import failed: {_import_err}")
-    _st.exception(_import_err)
-    _st.stop()
+    st.error(f"Startup import failed: {_import_err}")
+    st.exception(_import_err)
+    st.stop()
 
 # ── Logging ───────────────────────────────────────────────────
 os.makedirs(app_config.log_dir, exist_ok=True)
@@ -30,14 +38,6 @@ logging.basicConfig(
     ],
 )
 logger = logging.getLogger(__name__)
-
-# ── Page config ───────────────────────────────────────────────
-st.set_page_config(
-    page_title=app_config.app_title,
-    page_icon=app_config.app_icon,
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 # ── CSS ───────────────────────────────────────────────────────
 st.markdown("""
