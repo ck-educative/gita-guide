@@ -169,21 +169,31 @@ def get_vectorstore():
     """
     Load vectorstore using the configured backend.
 
-    Backend selection (VECTOR_BACKEND env var):
+    Backend selection (VECTOR_BACKEND env var or Streamlit secret):
       auto   — use Qdrant if QDRANT_URL is set, else ChromaDB (default)
       qdrant — always use Qdrant Cloud
       chroma — always use local ChromaDB
+
+    Note: reads secrets at call time so Streamlit secrets are available.
     """
     backend = _get_secret("VECTOR_BACKEND") or rag_config.vector_backend
+    qdrant_url = _get_secret("QDRANT_URL")
+
+    logger.info("Vector backend: %s | QDRANT_URL set: %s", backend, bool(qdrant_url))
 
     if backend == "qdrant":
+        if not qdrant_url:
+            raise RuntimeError(
+                "VECTOR_BACKEND=qdrant but QDRANT_URL is not set. "
+                "Add QDRANT_URL to your Streamlit secrets."
+            )
         return _load_qdrant()
 
     if backend == "chroma":
         return _load_chroma()
 
     # auto — prefer Qdrant if URL is configured
-    if _get_secret("QDRANT_URL"):
+    if qdrant_url:
         vs = _load_qdrant()
         if vs:
             return vs

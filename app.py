@@ -469,6 +469,9 @@ def run_query(question: str, mode: str, translation: str, k: int):
 
 
 # ── Startup checks ────────────────────────────────────────────
+# Clear cache so secrets are always re-read fresh on each deploy
+get_vectorstore.clear()
+
 try:
     vectorstore = get_vectorstore()
 except Exception as e:
