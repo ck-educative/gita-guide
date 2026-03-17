@@ -14,7 +14,7 @@ def test_sources_list_not_empty():
 
 def test_sources_have_10_entries():
     from config import ingest_config
-    assert len(ingest_config.text_sources) == 10
+    assert len(ingest_config.text_sources) == 8
 
 def test_sources_include_sanskrit():
     from config import ingest_config

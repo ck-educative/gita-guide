@@ -5,11 +5,19 @@ All tuneable settings live here. Never hardcode values in app.py or rag.py.
 
 import os
 from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
 class ModelConfig:
-    # Ollama model name — run `ollama list` to see what's installed
+    # LLM backend — "groq" (cloud, free API) or "ollama" (local)
+    # auto = uses Groq if GROQ_API_KEY set, else Ollama
+    llm_backend: str = os.getenv("LLM_BACKEND", "auto")
+
+    # Groq — get free API key at console.groq.com
+    groq_model: str = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+    # Ollama — local model, run: ollama pull llama3.2
     ollama_model: str = os.getenv("OLLAMA_MODEL", "gita-guide")
     ollama_base_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
@@ -19,14 +27,22 @@ class ModelConfig:
 
     # Embedding model — runs locally, no API key needed
     embedding_model: str = "all-MiniLM-L6-v2"
-    embedding_device: str = "cpu"  # use "mps" for Apple Silicon GPU acceleration
+    embedding_device: str = "cpu"
 
 
 @dataclass
 class RAGConfig:
-    # ChromaDB path
+    # Vector store backend — "chroma" (local) or "qdrant" (cloud)
+    # Auto-detected: uses qdrant if QDRANT_URL is set, else chroma
+    vector_backend: str = os.getenv("VECTOR_BACKEND", "auto")
+
+    # ChromaDB (local dev)
     db_path: str = os.getenv("CHROMA_DB_PATH", "./gita_db")
-    collection_name: str = "gita_verses"
+
+    # Qdrant (cloud)
+    qdrant_url: str = os.getenv("QDRANT_URL", "")
+    qdrant_api_key: str = os.getenv("QDRANT_API_KEY", "")
+    qdrant_collection: str = os.getenv("QDRANT_COLLECTION", "gita_passages")
 
     # Retrieval
     default_k: int = int(os.getenv("RAG_K", "4"))         # passages to retrieve
@@ -99,11 +115,6 @@ class IngestConfig:
             "https://ebooks.tirumala.org/downloads/The%20Bhagavad%20Gita.pdf",
         ),
         (
-            "gita_ignca.pdf",
-            "IGNCA",
-            "https://ignca.gov.in/Asi_data/279.pdf",
-        ),
-        (
             "gita_archive.txt",
             "Archive",
             "https://archive.org/stream/BhagavadGita_201806/Bhagavad-Gita-PDF_djvu.txt",
@@ -124,11 +135,6 @@ class IngestConfig:
             "gita_transliteration_safire.pdf",
             "Sanskrit-Transliteration",
             "https://sanskrit.safire.com/pdf/GITA_TRANS.PDF",
-        ),
-        (
-            "gita_romanized_iskcon.pdf",
-            "Sanskrit-Romanized",
-            "https://ebooks.iskcondesiretree.com/pdf/His_Grace_Dina_Anukampana_Dasa/Simplified_Romanized_Sanskrit/Srimad_Bhagavad-Gita_Slokas_-_For_Daily_Recitation_-_Simplified_Romanized_Sanskrit_by_Dina_Anukampana_Dasa.pdf",
         ),
     ])
 

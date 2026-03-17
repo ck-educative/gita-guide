@@ -14,11 +14,18 @@ Usage:
 """
 
 import argparse
+import os
+import sys
+
+# Add project root to path so config.py is importable
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 import json
 import logging
 import os
 import re
 import sys
+import time
 import urllib.request
 
 from config import ingest_config, app_config

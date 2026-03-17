@@ -11,9 +11,19 @@ from config import model_config, rag_config, app_config, ingest_config
 
 # ── ModelConfig ───────────────────────────────────────────────
 
+def test_model_config_llm_backend_valid():
+    assert model_config.llm_backend in ("auto", "groq", "ollama")
+
+def test_model_config_groq_model_set():
+    assert isinstance(model_config.groq_model, str)
+    assert len(model_config.groq_model) > 0
+
 def test_model_config_ollama_model_set():
     assert isinstance(model_config.ollama_model, str)
     assert len(model_config.ollama_model) > 0
+
+def test_model_config_ollama_url_is_http():
+    assert model_config.ollama_base_url.startswith("http")
 
 def test_model_config_temperature_in_range():
     assert 0.0 <= model_config.temperature <= 1.0
@@ -24,9 +34,6 @@ def test_model_config_max_tokens_positive():
 def test_model_config_embedding_model_set():
     assert isinstance(model_config.embedding_model, str)
     assert len(model_config.embedding_model) > 0
-
-def test_model_config_ollama_url_is_http():
-    assert model_config.ollama_base_url.startswith("http")
 
 
 # ── RagConfig ─────────────────────────────────────────────────

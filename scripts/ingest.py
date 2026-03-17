@@ -8,16 +8,18 @@ Usage:
   python ingest.py --reset              # wipe DB and re-ingest everything
 """
 
-##os.environ["ANONYMIZED_TELEMETRY"] = "False"
 import argparse
 import logging
 import os
 import sys
+
+# Add project root to path so config.py and rag.py are importable
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import time
 import urllib.request
 
 from langchain_community.document_loaders import TextLoader, PyPDFLoader
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 
@@ -36,40 +38,45 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def download_file(url: str, filename: str) -> bool:
+def download_file(url: str, filepath: str) -> bool:
     """Download a file if it doesn't already exist. Returns True on success."""
-    if os.path.exists(filename):
-        logger.info("  Already exists: %s — skipping download", filename)
+    if os.path.exists(filepath):
+        logger.info("  Already exists: %s — skipping download", filepath)
         return True
     if url is None:
-        logger.warning("  No URL for %s — manual download required", filename)
+        logger.warning("  No URL for %s — manual download required", filepath)
         return False
 
-    logger.info("  Downloading %s ...", filename)
+    logger.info("  Downloading %s ...", filepath)
     try:
         req = urllib.request.Request(
             url, headers={"User-Agent": "Mozilla/5.0"}
         )
         with urllib.request.urlopen(req, timeout=60) as r:
-            with open(filename, "wb") as f:
+            with open(filepath, "wb") as f:
                 f.write(r.read())
-        size_mb = os.path.getsize(filename) / 1_000_000
-        logger.info("  Downloaded: %s (%.1f MB)", filename, size_mb)
+        size_mb = os.path.getsize(filepath) / 1_000_000
+        logger.info("  Downloaded: %s (%.1f MB)", filepath, size_mb)
         return True
     except Exception as e:
-        logger.error("  Download failed for %s: %s", filename, e)
+        logger.error("  Download failed for %s: %s", filepath, e)
         return False
 
 
-def load_documents(filename: str) -> list:
+def load_documents(filepath: str) -> list:
     """Load a .txt or .pdf into LangChain documents."""
-    if filename.endswith(".pdf"):
-        return PyPDFLoader(filename).load()
-    return TextLoader(filename, encoding="utf-8").load()
+    if filepath.endswith(".pdf"):
+        return PyPDFLoader(filepath).load()
+    return TextLoader(filepath, encoding="utf-8").load()
 
 
 def ingest(filter_source: str = None, reset: bool = False):
     logger.info("=== Gita Guide Ingestion Pipeline ===")
+
+    # Ensure sources directory exists
+    sources_dir = ingest_config.sources_dir
+    os.makedirs(sources_dir, exist_ok=True)
+    logger.info("Sources directory: %s", sources_dir)
 
     # Reset DB if requested
     if reset and os.path.exists(rag_config.db_path):
@@ -102,15 +109,18 @@ def ingest(filter_source: str = None, reset: bool = False):
     for filename, translation, url in sources:
         logger.info("\nProcessing: %s", translation)
 
-        if not download_file(url, filename):
+        # All files go into sources/ subdirectory
+        filepath = os.path.join(sources_dir, filename)
+
+        if not download_file(url, filepath):
             logger.warning("Skipping %s", translation)
             continue
 
-        logger.info("  Loading %s ...", filename)
+        logger.info("  Loading %s ...", filepath)
         try:
-            docs = load_documents(filename)
+            docs = load_documents(filepath)
         except Exception as e:
-            logger.error("  Failed to load %s: %s", filename, e)
+            logger.error("  Failed to load %s: %s", filepath, e)
             continue
 
         chunks = splitter.split_documents(docs)
@@ -139,20 +149,23 @@ def ingest(filter_source: str = None, reset: bool = False):
 
 
 def list_sources():
-    print("\n Gita Guide — Configured Sources\n")
+    sources_dir = ingest_config.sources_dir
+    print(f"\n Gita Guide — Configured Sources (downloading to {sources_dir}/)\n")
     auto = [(f, t, u) for f, t, u in ingest_config.text_sources if u]
     manual = [(f, t, u) for f, t, u in ingest_config.text_sources if not u]
 
     print(f"Auto-download ({len(auto)}):")
     for filename, name, url in auto:
-        status = "✓ downloaded" if os.path.exists(filename) else "✗ not yet"
+        filepath = os.path.join(sources_dir, filename)
+        status = "✓ downloaded" if os.path.exists(filepath) else "✗ not yet"
         print(f"  [{status}] {name:25s} {filename}")
 
     if manual:
         print(f"\nManual download required ({len(manual)}):")
         for filename, name, _ in manual:
-            status = "✓ found" if os.path.exists(filename) else "✗ missing"
-            print(f"  [{status}] {name:25s} {filename}")
+            filepath = os.path.join(sources_dir, filename)
+            status = "✓ found" if os.path.exists(filepath) else "✗ missing"
+            print(f"  [{status}] {name:25s} — place in {sources_dir}/")
     print()
 
 

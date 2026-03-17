@@ -7,7 +7,6 @@ streamlit>=1.35.0,<2.0.0
 # LangChain — pinned to avoid breaking changes
 langchain>=0.2.0,<0.4.0
 langchain-community>=0.2.0,<0.4.0
-langchain-ollama>=0.1.0,<0.3.0
 langchain-text-splitters>=0.2.0,<0.4.0
 
 # Vector store
@@ -17,6 +16,14 @@ langchain-chroma>=0.1.0
 # Embeddings — local, no API key needed
 langchain-huggingface>=0.0.6
 sentence-transformers>=3.0.0,<4.0.0
+
+# LLM backends
+langchain-groq>=0.1.0       # Groq cloud (free API key at console.groq.com)
+langchain-ollama>=0.1.0     # Ollama local (optional, for offline use)
+
+# Qdrant vector store (cloud hosting)
+qdrant-client>=1.9.0
+langchain-qdrant>=0.1.0
 
 # Sanskrit transliteration conversion
 indic-transliteration>=2.3.0

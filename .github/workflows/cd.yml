@@ -1,7 +1,6 @@
 name: CD — Deploy to Streamlit Cloud
 
 on:
-  # Trigger after CI passes on main
   workflow_run:
     workflows: [CI]
     branches: [main]
@@ -10,13 +9,12 @@ on:
 permissions:
   contents: read
 
-# Streamlit Cloud watches the GitHub repo directly and auto-deploys on push.
-# This workflow validates the build is healthy before Streamlit picks it up.
+# Streamlit Cloud auto-deploys when main is updated.
+# This workflow runs post-CI validation to confirm the build is healthy.
 
 jobs:
-  validate-before-deploy:
+  validate-and-deploy:
     runs-on: ubuntu-latest
-    # Only run if CI passed — not on failure
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
@@ -27,7 +25,6 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-
 
       - name: Cache pip
         uses: actions/cache@v5
@@ -41,16 +38,27 @@ jobs:
 
       - name: Validate config and imports
         run: |
-          python -c "from config import model_config, rag_config, app_config, ingest_config; print('Config OK')"
+          python -c "
+          from config import model_config, rag_config, app_config, ingest_config
+          assert model_config.llm_backend in ('auto', 'groq', 'ollama'), 'Bad llm_backend'
+          assert rag_config.vector_backend in ('auto', 'chroma', 'qdrant'), 'Bad vector_backend'
+          print('Config OK')
+          "
           python -c "import rag; print('RAG OK')"
 
       - name: Run fast tests
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          LLM_BACKEND: auto
+          VECTOR_BACKEND: auto
         run: pytest tests/test_config.py tests/test_rag.py tests/test_build_verses.py -v --tb=short
 
-      - name: Confirm deploy
+      - name: Confirm deployment
         run: |
-          echo "✓ All checks passed"
-          echo "✓ Streamlit Cloud will auto-deploy from main branch"
-          echo "✓ App URL: https://ck-educative-gita-guide.streamlit.app"
+          echo ""
+          echo "=========================================="
+          echo "✓ CI passed"
+          echo "✓ Post-deploy validation passed"
+          echo "✓ Streamlit Cloud auto-deploying from main"
+          echo "✓ App: https://ckrishk-gita-guide.streamlit.app"
+          echo "=========================================="
