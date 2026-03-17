@@ -10,8 +10,14 @@ import os
 
 import streamlit as st
 
-from config import app_config, rag_config
-from rag import SYSTEM_PROMPTS, ask, get_vectorstore, retrieve_passages
+try:
+    from config import app_config, rag_config
+    from rag import SYSTEM_PROMPTS, ask, check_guardrails, get_vectorstore, retrieve_passages
+except Exception as _import_err:
+    import streamlit as _st
+    _st.error(f"Startup import failed: {_import_err}")
+    _st.exception(_import_err)
+    _st.stop()
 
 # ── Logging ───────────────────────────────────────────────────
 os.makedirs(app_config.log_dir, exist_ok=True)
@@ -46,6 +52,16 @@ html, body, [class*="css"] { font-family: 'Lora', Georgia, serif; }
     background-image:
         radial-gradient(ellipse at 20% 10%, rgba(210,140,30,0.08) 0%, transparent 55%),
         radial-gradient(ellipse at 80% 90%, rgba(180,100,20,0.06) 0%, transparent 55%);
+}
+
+/* ── Hero image ──────────────────────────────────────────── */
+.hero-wrap img {
+    border-radius: 12px;
+    max-height: 340px;
+    object-fit: cover;
+    object-position: center top;
+    width: 100%;
+    display: block;
 }
 
 /* ── Hero ─────────────────────────────────────────────────── */
@@ -401,6 +417,15 @@ def render_verse_card(verse_data: dict, chapter: int, verse: int):
 
 
 def run_query(question: str, mode: str, translation: str, k: int):
+    # Check guardrails before hitting the LLM
+    guardrail = check_guardrails(question)
+    if guardrail:
+        st.markdown(
+            f'<div class="info-card">{guardrail}</div>',
+            unsafe_allow_html=True,
+        )
+        return
+
     try:
         with st.spinner("Consulting the ancient wisdom…"):
             passages, docs = retrieve_passages(
@@ -437,8 +462,8 @@ def run_query(question: str, mode: str, translation: str, k: int):
     except Exception as e:
         logger.error("Query failed: %s", e)
         st.markdown(
-            '<div class="error-box">⚠ Could not reach Ollama. '
-            'Make sure it is running: <code>ollama serve</code></div>',
+            '<div class="error-box">⚠ Could not reach the AI service. '
+            'Check your GROQ_API_KEY in .streamlit/secrets.toml</div>',
             unsafe_allow_html=True,
         )
 
@@ -459,15 +484,31 @@ if vectorstore is None:
     st.stop()
 
 # ── Hero ──────────────────────────────────────────────────────
-st.markdown("""
-<div class="hero-wrap">
-    <span class="hero-ornament">❧ ✦ ❧</span>
-    <h1 class="hero-title">Gita Guide</h1>
-    <p class="hero-devanagari">श्रीमद्भगवद्गीता</p>
-    <p class="hero-subtitle">Ancient wisdom &nbsp;·&nbsp; Modern understanding &nbsp;·&nbsp; Local AI</p>
-    <div class="hero-rule"></div>
-</div>
-""", unsafe_allow_html=True)
+if os.path.exists(app_config.hero_image):
+    st.markdown("""
+    <div class="hero-wrap">
+    """, unsafe_allow_html=True)
+    st.image(app_config.hero_image, use_container_width=True)
+    st.markdown("""
+        <div style="text-align:center;padding:1.2rem 0 0.5rem">
+            <span class="hero-ornament">❧ ✦ ❧</span>
+            <h1 class="hero-title">Gita Guide</h1>
+            <p class="hero-devanagari">श्रीमद्भगवद्गीता</p>
+            <p class="hero-subtitle">Ancient wisdom &nbsp;·&nbsp; Modern understanding &nbsp;·&nbsp; Local AI</p>
+            <div class="hero-rule"></div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+    <div class="hero-wrap">
+        <span class="hero-ornament">❧ ✦ ❧</span>
+        <h1 class="hero-title">Gita Guide</h1>
+        <p class="hero-devanagari">श्रीमद्भगवद्गीता</p>
+        <p class="hero-subtitle">Ancient wisdom &nbsp;·&nbsp; Modern understanding &nbsp;·&nbsp; Local AI</p>
+        <div class="hero-rule"></div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ── Sidebar ───────────────────────────────────────────────────
 with st.sidebar:
