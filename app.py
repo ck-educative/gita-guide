@@ -469,16 +469,22 @@ def run_query(question: str, mode: str, translation: str, k: int):
 
 
 # ── Startup checks ────────────────────────────────────────────
-vectorstore = get_vectorstore()
+try:
+    vectorstore = get_vectorstore()
+except Exception as e:
+    st.error(f"Vector store failed to load: {e}")
+    st.exception(e)
+    st.stop()
+
 VERSES = load_verses()
 
 if vectorstore is None:
     st.markdown("""
     <div class="error-box">
-        <strong>Database not found.</strong><br><br>
-        Run these commands to set up:<br>
-        <code>python ingest.py</code> — ingest text sources into ChromaDB<br>
-        <code>python build_verses.py</code> — download all 700 Sanskrit verses
+        <strong>Vector database not connected.</strong><br><br>
+        <strong>For cloud deployment:</strong> Add <code>QDRANT_URL</code>, <code>QDRANT_API_KEY</code>
+        and <code>VECTOR_BACKEND=qdrant</code> to your Streamlit secrets.<br><br>
+        <strong>For local use:</strong> Run <code>python scripts/ingest.py</code> to build ChromaDB.
     </div>
     """, unsafe_allow_html=True)
     st.stop()
